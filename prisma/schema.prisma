@@ -1,0 +1,303 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Socials {
+  meta
+  tiktok
+  google
+  none
+}
+
+enum VerificationType {
+  link
+  otp
+}
+
+enum NotificationType {
+  generic
+}
+
+enum NotificationStatus {
+  scheduled
+  sending
+  sent
+  failed
+}
+
+enum StoreStatus {
+  active
+  suspended
+  closed
+}
+
+enum DeviceState {
+  normal // Device is in regular use and trusted
+  suspicious // Device activity flagged as suspicious, but not blocked yet
+  blocked // Device is blocked and can't access the system
+}
+
+model User {
+  id                         String              @id @default(uuid())
+  email                      String              @unique
+  firstName                  String              @default("")
+  middleName                 String              @default("")
+  lastName                   String              @default("")
+  shortName                  String              @default("")
+  fullName                   String              @default("")
+  displayName                String              @default("")
+  locale                     String              @default("en-gb")
+  rofile                     Profile?
+  superAdminProfile          SuperAdmin?
+  adminProfile               Admin?
+  vendorProfile              Vendor?
+  customerProfile            Customer?
+  verification               Verification?
+  passwords                  Password[]
+  sessions                   Session[]
+  addresses                  Address[]
+  events                     Event[]
+  loginAttempts              LoginAttempt[]
+  sentEmailNotifications     EmailNotification[] @relation(name: "sentEmailNotifications")
+  receivedEmailNotifications EmailNotification[] @relation(name: "receivedEmailNotifications")
+  sentAppNotifications       AppNotification[]   @relation("sentAppNotifications")
+  receivedAppNotifications   AppNotification[]   @relation("receivedAppNotifications")
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  archivedAt                 DateTime?
+}
+
+model SuperAdmin {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Vendor {
+  id            String   @id @default(uuid())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String   @unique
+  ownedStores   Store[]  @relation("ownedStores")
+  staffedStores Store[]  @relation("staffedStores")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Password {
+  id        Int      @id @default(autoincrement())
+  salt      String
+  hash      Bytes
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// model OAuthProvider {
+//   id         String   @id @default(uuid())
+//   provider   String // e.g., "google", "facebook"
+//   providerId String   @unique // The user's ID in the provider's system
+//   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   userId     String
+//   createdAt  DateTime @default(now())
+//   updatedAt  DateTime @updatedAt
+// }
+
+model LoginAttempt {
+  id            String   @id @default(uuid())
+  successful    Boolean  @default(false)
+  failureReason String   @default("")
+  metaData      Json?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId        String?
+  device        Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  deviceId      Int?
+  attemptedAt   DateTime @default(now())
+}
+
+model Session {
+  token      String    @id @default(uuid())
+  lastLogin  DateTime?
+  lastActive DateTime?
+  expiresAt  DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  devices    Device[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model Device {
+  id            Int            @id @default(autoincrement())
+  firebaseId    String         @default("")
+  ipAddress     String         @default("")
+  deviceName    String         @default("")
+  browserName   String         @default("")
+  userAgent     String         @default("")
+  deviceType    String         @default("")
+  metaData      Json?
+  state         DeviceState    @default(normal)
+  session       Session?       @relation(fields: [sessionToken], references: [token], onDelete: SetNull)
+  sessionToken  String?
+  loginAttempts LoginAttempt[]
+  lastActive    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @default(now()) @updatedAt
+}
+
+model Verification {
+  id        Int              @id @default(autoincrement())
+  type      VerificationType @default(otp)
+  code      String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String           @unique
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model RecoveryCode {
+  id                String          @id @default(uuid())
+  salt              String
+  hash              Bytes
+  multiFactorAuth   MultiFactorAuth @relation(fields: [multiFactorAuthId], references: [id], onDelete: Cascade)
+  multiFactorAuthId String
+  createdAt         DateTime        @default(now())
+  usedAt            DateTime?
+}
+
+model MultiFactorAuth {
+  id                  String         @id @default(uuid())
+  sms                 Boolean        @default(false) // Whether SMS is used
+  email               Boolean        @default(false) // Whether email is used
+  authenticator       Boolean        @default(false) // Whether an authenticator app is used
+  authenticatorSecret String         @default("") // Secret for authenticator apps
+  profile             Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId           Int            @unique
+  recoveryCodes       RecoveryCode[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+}
+
+model Profile {
+  id              Int              @id @default(autoincrement())
+  emailVerified   Boolean          @default(false)
+  phoneVerified   Boolean          @default(false)
+  setAddress      Boolean          @default(false)
+  setPassword     Boolean          @default(false)
+  multiFactorAuth MultiFactorAuth?
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model Address {
+  id           String   @id @default(uuid())
+  addressLine1 String   @default("")
+  addressLine2 String   @default("")
+  addressLine3 String   @default("")
+  city         String   @default("")
+  state        String   @default("")
+  country      String   @default("")
+  county       String   @default("")
+  region       String   @default("")
+  postCode     String   @default("")
+  flat         String   @default("")
+  street       String   @default("")
+  houseName    String   @default("")
+  houseNumber  String   @default("")
+  countryCode  String   @default("")
+  phoneNumber  String   @default("")
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String?
+  store        Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AppNotification {
+  id            Int                @id @default(autoincrement())
+  title         String             @default("")
+  body          String             @default("")
+  type          NotificationType   @default(generic)
+  status        NotificationStatus @default(scheduled)
+  data          Json               @default("{}")
+  errorResponse Json?
+  scheduledAt   DateTime?
+  toUser        User               @relation("receivedAppNotifications", fields: [toUserId], references: [id], onDelete: Cascade)
+  toUserId      String
+  fromUser      User               @relation("sentAppNotifications", fields: [fromUserId], references: [id], onDelete: Cascade)
+  fromUserId    String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+model EmailNotification {
+  id             Int                @id @default(autoincrement())
+  email          String             @default("")
+  templateName   String             @default("")
+  templateId     String             @default("")
+  templateParams Json               @default("{}")
+  type           NotificationType   @default(generic)
+  status         NotificationStatus @default(scheduled)
+  errorResponse  Json?
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  sentBy         User?              @relation(name: "sentEmailNotifications", fields: [sentById], references: [id], onDelete: Cascade)
+  sentById       String?
+  receivedBy     User?              @relation(name: "receivedEmailNotifications", fields: [receivedById], references: [id], onDelete: Cascade)
+  receivedById   String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}
+
+model Event {
+  id          Int      @id @default(autoincrement())
+  action      String
+  description String   @default("")
+  email       String   @default("")
+  metadata    Json?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String?
+  createdAt   DateTime @default(now())
+}
+
+model Store {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  email       String
+  description String      @default("")
+  website     String?
+  status      StoreStatus @default(active)
+  owner       Vendor      @relation("ownedStores", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId     String
+  staff       Vendor[]    @relation(name: "staffedStores")
+  addresses   Address[]
+  taxId       String      @default("")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
