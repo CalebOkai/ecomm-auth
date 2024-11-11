@@ -13,4 +13,4 @@ COPY ./tsconfig.json /app
 
 RUN yarn prisma generate
 
-CMD ["sh", "-c", "yarn prisma migrate deploy && yarn start"]
+CMD ["sh", "-c", "if [ \"$NODE_ENV\" != \"local\" ]; then yarn prisma migrate deploy; fi && yarn start"]

@@ -7,13 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Socials {
-  meta
-  tiktok
-  google
-  none
-}
-
 enum VerificationType {
   link
   otp
@@ -42,6 +35,12 @@ enum DeviceState {
   blocked // Device is blocked and can't access the system
 }
 
+enum VendorType {
+  owner
+  manager
+  staff
+}
+
 model User {
   id                         String              @id @default(uuid())
   email                      String              @unique
@@ -52,12 +51,12 @@ model User {
   fullName                   String              @default("")
   displayName                String              @default("")
   locale                     String              @default("en-gb")
-  rofile                     Profile?
+  profile                    Profile?
   superAdminProfile          SuperAdmin?
   adminProfile               Admin?
   vendorProfile              Vendor?
   customerProfile            Customer?
-  verification               Verification?
+  verifications              Verification[]
   passwords                  Password[]
   sessions                   Session[]
   addresses                  Address[]
@@ -89,13 +88,14 @@ model Admin {
 }
 
 model Vendor {
-  id            String   @id @default(uuid())
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId        String   @unique
-  ownedStores   Store[]  @relation("ownedStores")
-  staffedStores Store[]  @relation("staffedStores")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id            String     @id @default(uuid())
+  type          VendorType
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String     @unique
+  ownedStores   Store[]    @relation("ownedStores")
+  staffedStores Store[]    @relation("staffedStores")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 }
 
 model Customer {
@@ -116,26 +116,16 @@ model Password {
   updatedAt DateTime @updatedAt
 }
 
-// model OAuthProvider {
-//   id         String   @id @default(uuid())
-//   provider   String // e.g., "google", "facebook"
-//   providerId String   @unique // The user's ID in the provider's system
-//   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-//   userId     String
-//   createdAt  DateTime @default(now())
-//   updatedAt  DateTime @updatedAt
-// }
-
 model LoginAttempt {
-  id            String   @id @default(uuid())
-  successful    Boolean  @default(false)
-  failureReason String   @default("")
-  metaData      Json?
-  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  userId        String?
-  device        Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-  deviceId      Int?
-  attemptedAt   DateTime @default(now())
+  id              String   @id @default(uuid())
+  successful      Boolean  @default(false)
+  failureMetaData Json?
+  successMetaData Json?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId          String?
+  device          Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  deviceId        Int?
+  attemptedAt     DateTime @default(now())
 }
 
 model Session {
@@ -163,6 +153,7 @@ model Device {
   session       Session?       @relation(fields: [sessionToken], references: [token], onDelete: SetNull)
   sessionToken  String?
   loginAttempts LoginAttempt[]
+  events        Event[]
   lastActive    DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @default(now()) @updatedAt
@@ -203,10 +194,10 @@ model MultiFactorAuth {
 
 model Profile {
   id              Int              @id @default(autoincrement())
-  emailVerified   Boolean          @default(false)
-  phoneVerified   Boolean          @default(false)
-  setAddress      Boolean          @default(false)
-  setPassword     Boolean          @default(false)
+  emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
+  setAddressAt    DateTime?
+  setPasswordAt   DateTime?
   multiFactorAuth MultiFactorAuth?
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId          String           @unique
@@ -245,7 +236,7 @@ model AppNotification {
   body          String             @default("")
   type          NotificationType   @default(generic)
   status        NotificationStatus @default(scheduled)
-  data          Json               @default("{}")
+  data          Json?
   errorResponse Json?
   scheduledAt   DateTime?
   toUser        User               @relation("receivedAppNotifications", fields: [toUserId], references: [id], onDelete: Cascade)
@@ -259,11 +250,11 @@ model AppNotification {
 model EmailNotification {
   id             Int                @id @default(autoincrement())
   email          String             @default("")
+  type           NotificationType   @default(generic)
+  status         NotificationStatus @default(scheduled)
   templateName   String             @default("")
   templateId     String             @default("")
   templateParams Json               @default("{}")
-  type           NotificationType   @default(generic)
-  status         NotificationStatus @default(scheduled)
   errorResponse  Json?
   scheduledAt    DateTime?
   sentAt         DateTime?
@@ -283,6 +274,8 @@ model Event {
   metadata    Json?
   user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String?
+  device      Device?  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId    Int?
   createdAt   DateTime @default(now())
 }
 
@@ -291,7 +284,7 @@ model Store {
   name        String      @unique
   email       String
   description String      @default("")
-  website     String?
+  website     String      @default("")
   status      StoreStatus @default(active)
   owner       Vendor      @relation("ownedStores", fields: [ownerId], references: [id], onDelete: Cascade)
   ownerId     String
