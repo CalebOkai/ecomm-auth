@@ -206,28 +206,32 @@ model Profile {
 }
 
 model Address {
-  id           String   @id @default(uuid())
-  addressLine1 String   @default("")
-  addressLine2 String   @default("")
-  addressLine3 String   @default("")
-  city         String   @default("")
-  state        String   @default("")
-  country      String   @default("")
-  county       String   @default("")
-  region       String   @default("")
-  postCode     String   @default("")
-  flat         String   @default("")
-  street       String   @default("")
-  houseName    String   @default("")
-  houseNumber  String   @default("")
-  countryCode  String   @default("")
-  phoneNumber  String   @default("")
-  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       String?
-  store        Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  storeId      String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(uuid())
+  addressLine1   String   @default("")
+  addressLine2   String   @default("")
+  addressLine3   String   @default("")
+  city           String   @default("")
+  state          String   @default("")
+  country        String   @default("")
+  county         String   @default("")
+  region         String   @default("")
+  zipCode        String   @default("")
+  flat           String   @default("")
+  street         String   @default("")
+  houseName      String   @default("")
+  houseNumber    String   @default("")
+  countryCode    String   @default("")
+  phoneNumber    String   @default("")
+  latitude       String   @default("")
+  longitude      String   @default("")
+  ghanaGps       String   @default("")
+  googlePlusCode String   @default("")
+  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String?
+  store          Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model AppNotification {
