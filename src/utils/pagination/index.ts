@@ -1,6 +1,9 @@
-import { PrismaClient } from "@prisma/client";
-
-import { ListModel } from "../models/types";
+import { ListNonAuthModel } from "../../models/types";
+import {
+  ListPaginatedInstancesArgs,
+  PaginatedResponse,
+  PaginatedResponseArgs
+} from "./types";
 
 
 
@@ -10,24 +13,29 @@ export const orderByToString = (orderBy: any): string | undefined => {
   if (!orderBy || typeof orderBy !== "object") {
     return undefined;
   }
-
   // Recursively build the order string
   const buildOrderByString = (obj: any, parentKey: string = ""): string => {
     const key = Object.keys(obj)[0];
     const value = obj[key];
-
     if (typeof value === "object") {
-      return buildOrderByString(value, parentKey ? `${parentKey}.${key}` : key);
+      return buildOrderByString(
+        value, parentKey ? `${parentKey}.${key}` : key
+      );
     }
 
     return `${parentKey ? `${parentKey}.${key}` : key},${value}`;
-  };
+  }
 
   return buildOrderByString(orderBy);
 }
 
 
-export const paginationOptions = (args: ListModel<any>) => {
+export const paginationOptions = <
+  FilterType,
+  IncludeType
+>(
+  args: ListNonAuthModel<FilterType, IncludeType>
+) => {
   const { page, pageSize } = args;
   if (!(page && pageSize)) return {};
   const skip = (page - 1) * pageSize;
@@ -40,17 +48,15 @@ export const paginationOptions = (args: ListModel<any>) => {
 }
 
 
-type Pagination = {
-  args: ListModel<any>;
-  results: any[];
-  count: number;
-}
-const paginatedResponse = ({
-  args,
-  results,
-  count
-}: Pagination) => {
-  const { page, pageSize, orderBy, path: rawPath } = args;
+const paginatedResponse = <
+  ModelType,
+  FilterType,
+  IncludeType
+>(
+  args: PaginatedResponseArgs<ModelType, FilterType, IncludeType>
+): PaginatedResponse<ModelType> => {
+  const { args: modelArgs, count, results } = args;
+  const { page, pageSize, orderBy, path: rawPath } = modelArgs;
   // Remove trailing slash if it exists
   const path = rawPath.replace(/\/$/, "");
   if (!(page && pageSize)) return {
@@ -80,19 +86,17 @@ const paginatedResponse = ({
 }
 
 
-type Args = {
-  args: ListModel<any, any>;
-  prisma: any;
-  model: keyof PrismaClient;
-}
-export const listPaginatedInstances = async ({
-  args,
-  prisma,
-  model
-}: Args) => {
-  const { filters, include, orderBy } = args;
+export const listPaginatedInstances = async <
+  ModelType,
+  FilterType,
+  IncludeType,
+>(
+  args: ListPaginatedInstancesArgs<FilterType, IncludeType>
+): Promise<PaginatedResponse<ModelType>> => {
+  const { args: modelArgs, prisma, model } = args;
+  const { filters, include, orderBy } = modelArgs;
   const findManyParams: any = {
-    ...paginationOptions(args),
+    ...paginationOptions<FilterType, IncludeType>(modelArgs),
     where: filters,
   };
   if (include) findManyParams["include"] = include;
@@ -101,7 +105,7 @@ export const listPaginatedInstances = async ({
   const results = await prisma[model].findMany(findManyParams);
 
   return paginatedResponse({
-    args,
+    args: modelArgs,
     count,
     results
   });

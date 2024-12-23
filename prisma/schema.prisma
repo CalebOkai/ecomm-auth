@@ -23,22 +23,10 @@ enum NotificationStatus {
   failed
 }
 
-enum StoreStatus {
-  active
-  suspended
-  closed
-}
-
 enum DeviceState {
   normal // Device is in regular use and trusted
   suspicious // Device activity flagged as suspicious, but not blocked yet
   blocked // Device is blocked and can't access the system
-}
-
-enum VendorType {
-  owner
-  manager
-  staff
 }
 
 model User {
@@ -51,11 +39,15 @@ model User {
   fullName                   String              @default("")
   displayName                String              @default("")
   locale                     String              @default("en-gb")
+  countryCode                String              @default("")
+  phoneNumber                String              @default("")
+  emailVerifiedAt            DateTime?
+  phoneVerifiedAt            DateTime?
+  archivedBy                 User?               @relation("archivedBy", fields: [archivedById], references: [id], onDelete: SetNull)
+  archivedById               String?
   profile                    Profile?
   superAdminProfile          SuperAdmin?
   adminProfile               Admin?
-  vendorProfile              Vendor?
-  customerProfile            Customer?
   verifications              Verification[]
   passwords                  Password[]
   sessions                   Session[]
@@ -66,9 +58,10 @@ model User {
   receivedEmailNotifications EmailNotification[] @relation(name: "receivedEmailNotifications")
   sentAppNotifications       AppNotification[]   @relation("sentAppNotifications")
   receivedAppNotifications   AppNotification[]   @relation("receivedAppNotifications")
+  archivedUsers              User[]              @relation("archivedBy")
+  archivedAt                 DateTime?
   createdAt                  DateTime            @default(now())
   updatedAt                  DateTime            @updatedAt
-  archivedAt                 DateTime?
 }
 
 model SuperAdmin {
@@ -87,25 +80,6 @@ model Admin {
   updatedAt DateTime @updatedAt
 }
 
-model Vendor {
-  id            String     @id @default(uuid())
-  type          VendorType
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId        String     @unique
-  ownedStores   Store[]    @relation("ownedStores")
-  staffedStores Store[]    @relation("staffedStores")
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-}
-
-model Customer {
-  id        String   @id @default(uuid())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model Password {
   id        Int      @id @default(autoincrement())
   salt      String
@@ -117,14 +91,14 @@ model Password {
 }
 
 model LoginAttempt {
-  id              String   @id @default(uuid())
+  id              Int      @id @default(autoincrement())
   successful      Boolean  @default(false)
   failureMetaData Json?
   successMetaData Json?
   user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId          String?
   device          Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-  deviceId        Int?
+  deviceId        String?
   attemptedAt     DateTime @default(now())
 }
 
@@ -141,32 +115,35 @@ model Session {
 }
 
 model Device {
-  id            Int            @id @default(autoincrement())
-  firebaseId    String         @default("")
-  ipAddress     String         @default("")
-  deviceName    String         @default("")
-  browserName   String         @default("")
-  userAgent     String         @default("")
-  deviceType    String         @default("")
-  metaData      Json?
-  state         DeviceState    @default(normal)
-  session       Session?       @relation(fields: [sessionToken], references: [token], onDelete: SetNull)
-  sessionToken  String?
-  loginAttempts LoginAttempt[]
-  events        Event[]
-  lastActive    DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @default(now()) @updatedAt
+  id              String         @id @default(uuid())
+  firebaseId      String         @default("")
+  ipAddress       String         @default("")
+  deviceName      String         @default("")
+  browserName     String         @default("")
+  userAgent       String         @default("")
+  deviceType      String         @default("")
+  metaData        Json?
+  state           DeviceState    @default(normal)
+  session         Session?       @relation(fields: [sessionToken], references: [token], onDelete: SetNull)
+  sessionToken    String?
+  loginAttempts   LoginAttempt[]
+  verifiedDevices Verification[]
+  events          Event[]
+  lastActive      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @default(now()) @updatedAt
 }
 
 model Verification {
-  id        Int              @id @default(autoincrement())
-  type      VerificationType @default(otp)
-  code      String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String           @unique
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id           Int              @id @default(autoincrement())
+  type         VerificationType @default(otp)
+  code         String
+  verifiedBy   Device?          @relation(fields: [verifiedById], references: [id], onDelete: Cascade)
+  verifiedById String?
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String           @unique
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 }
 
 model RecoveryCode {
@@ -194,10 +171,6 @@ model MultiFactorAuth {
 
 model Profile {
   id              Int              @id @default(autoincrement())
-  emailVerifiedAt DateTime?
-  phoneVerifiedAt DateTime?
-  setAddressAt    DateTime?
-  setPasswordAt   DateTime?
   multiFactorAuth MultiFactorAuth?
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId          String           @unique
@@ -226,9 +199,8 @@ model Address {
   longitude      String   @default("")
   ghanaGps       String   @default("")
   googlePlusCode String   @default("")
-  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId         String?
-  store          Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   storeId        String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -262,9 +234,9 @@ model EmailNotification {
   errorResponse  Json?
   scheduledAt    DateTime?
   sentAt         DateTime?
-  sentBy         User?              @relation(name: "sentEmailNotifications", fields: [sentById], references: [id], onDelete: Cascade)
+  sentBy         User?              @relation(name: "sentEmailNotifications", fields: [sentById], references: [id], onDelete: SetNull)
   sentById       String?
-  receivedBy     User?              @relation(name: "receivedEmailNotifications", fields: [receivedById], references: [id], onDelete: Cascade)
+  receivedBy     User?              @relation(name: "receivedEmailNotifications", fields: [receivedById], references: [id], onDelete: SetNull)
   receivedById   String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -276,25 +248,9 @@ model Event {
   description String   @default("")
   email       String   @default("")
   metadata    Json?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId      String?
-  device      Device?  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  deviceId    Int?
+  device      Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  deviceId    String?
   createdAt   DateTime @default(now())
-}
-
-model Store {
-  id          String      @id @default(uuid())
-  name        String      @unique
-  email       String
-  description String      @default("")
-  website     String      @default("")
-  status      StoreStatus @default(active)
-  owner       Vendor      @relation("ownedStores", fields: [ownerId], references: [id], onDelete: Cascade)
-  ownerId     String
-  staff       Vendor[]    @relation(name: "staffedStores")
-  addresses   Address[]
-  taxId       String      @default("")
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
 }

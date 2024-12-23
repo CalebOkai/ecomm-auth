@@ -1,33 +1,23 @@
 import { Prisma } from "@prisma/client";
 
+import { NonAuthViewArgs, AuthViewArgs, AuthHandlerData } from "./types";
+import { isApplicationError, PermissionDeniedError } from "../errors";
 import { default403, default500 } from "../errors/defaultMsgs";
-import { cleanString } from "../utils/strings";
+import { getOrCreateDevice } from "../models/devices";
 import { prismaClient } from "../models";
+import { isUser } from "./auth";
 import logger from "./logger";
-import {
-  isUser,
-  setSessionInfo,
-  getAuthToken
-} from "./auth";
-import {
-  isApplicationError,
-  PermissionDeniedError,
-} from "../errors";
-import {
-  NonAuthViewHandlerArgs,
-  AuthViewHandlerArgs,
-  AuthHandlerData,
-  QueryParams
-} from "./types";
 
 
 
-/**************************************************/
-/** Get User, Token and Subscription from Request */
-const getAuthHandlerData = async ({
-  req,
-  userType = "superAdmin",
-}: AuthViewHandlerArgs): Promise<AuthHandlerData | null> => {
+/*****************************************************
+ * **Get User and Session from Request via the Token**
+ * @param args Authenticated view args
+ */
+const getAuthData = async (
+  args: AuthViewArgs
+): Promise<AuthHandlerData | null> => {
+  const { req, userType } = args;
   switch (userType) {
     case "superAdmin":
       const auth = await isUser(req);
@@ -38,15 +28,18 @@ const getAuthHandlerData = async ({
 }
 
 
-/*******************************/
-/** Authenticated View Handler */
-export const AuthViewHandler = async (
-  args: AuthViewHandlerArgs
+/********************************
+ * **Authenticated View Handler**
+ * @param args Authenticated view args
+ */
+export const AuthView = async (
+  args: AuthViewArgs
 ) => {
   const { req, res, isTxn = true, view } = args;
   const path = req.path;
   try {
-    const auth = await getAuthHandlerData(args);
+    const auth = await getAuthData(args);
+    const device = await getOrCreateDevice(req);
     if (!auth) {
       throw new PermissionDeniedError("", default403);
     }
@@ -54,13 +47,13 @@ export const AuthViewHandler = async (
       return await prismaClient.$transaction(async (
         prismaTxn: Prisma.TransactionClient
       ) => {
-        return await view({ path, auth, prismaTxn });
+        return await view({ path, auth, device, prismaTxn });
       }, {
         maxWait: 60000,
         timeout: 60000
       });
     } else {
-      return await view({ path, auth });
+      return await view({ path, auth, device });
     }
   } catch (err: any) {
     logger.error(err);
@@ -73,29 +66,28 @@ export const AuthViewHandler = async (
 }
 
 
-/***********************************/
-/** Non-Authenticated View Handler */
-export const NonAuthViewHandler = async (
-  args: NonAuthViewHandlerArgs
+/********************************
+ * **Non-Authenticated View Handler**
+ * @param args NOn-authenticated view args
+ */
+export const NonAuthView = async (
+  args: NonAuthViewArgs
 ) => {
   const { req, res, isTxn = true, view } = args;
   const path = req.path;
   try {
-    await setSessionInfo(req);
-    getAuthToken(req);
-  } catch { }
-  try {
+    const device = await getOrCreateDevice(req);
     if (isTxn) {
       return await prismaClient.$transaction(async (
         prismaTxn: Prisma.TransactionClient
       ) => {
-        return await view({ path, prismaTxn });
+        return await view({ path, device, prismaTxn });
       }, {
         maxWait: 60000,
         timeout: 60000
       });
     } else {
-      return await view({ path });
+      return await view({ path, device });
     }
   } catch (err: any) {
     logger.error(err);
@@ -106,35 +98,3 @@ export const NonAuthViewHandler = async (
     }
   }
 }
-
-
-/*********************/
-/** Get Query Params */
-export const getQueryParams = (
-  query: { [key: string]: any },
-  keys: string[]
-): QueryParams => {
-  const extracted: QueryParams = {};
-  keys.forEach((key) => {
-    const rawValue = query[key] !== undefined ? String(query[key]).trim() : "";
-    let decodedValue = "";
-    try {
-      decodedValue = decodeURIComponent(rawValue);
-    } catch (e: any) {
-      decodedValue = rawValue;
-    }
-    extracted[key] = decodedValue;
-  });
-
-  return extracted;
-}
-
-
-/*******************************/
-/** Clean search string filter */
-export const searchFilter = (
-  term: string
-): string | Prisma.StringFilter | undefined => ({
-  contains: cleanString(term),
-  mode: "insensitive"
-});

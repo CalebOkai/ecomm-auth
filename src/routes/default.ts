@@ -1,6 +1,6 @@
 import { Application } from "express";
 
-import { Default } from "../views/default";
+import { Default } from "../views/_Default";
 
 
 

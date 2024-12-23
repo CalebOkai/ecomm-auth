@@ -23,11 +23,6 @@ export class NotFoundError extends ApplicationError {
   status = 404;
 }
 
-export class RegistrationError extends ApplicationError {
-  name = "ValidationError";
-  status = 203;
-}
-
 export class PermissionDeniedError extends ApplicationError {
   name = "PermissionDeniedError";
   status = 403;
@@ -46,13 +41,12 @@ export class DbError extends ApplicationError {
 
 export const isApplicationError = (err: any) => {
   const doesNameMatch = [
-    "ValidationError",
-    "DbError",
     "ApplicationError",
+    "ValidationError",
     "NotFoundError",
-    "UnauthorizedError",
     "PermissionDeniedError",
-    "RegistrationError"
+    "UnauthorizedError",
+    "DbError",
   ].includes(err.name);
 
   return doesNameMatch;

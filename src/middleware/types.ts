@@ -1,5 +1,5 @@
+import { Prisma, User, Session, Device } from "@prisma/client";
 import { Request, Response, NextFunction } from "express";
-import { Prisma, User, Session } from "@prisma/client";
 
 
 
@@ -10,40 +10,30 @@ export type UserType =
   | "customer";
 
 
-export type SessionInfo = {
-  deviceInfo: string;
-  browserInfo: string;
-  ipAddress: string;
-}
-
 export type AuthHandlerData = {
   session: Session;
   user: User;
 }
 
-export type NonAuthViewArgs = {
-  path: string;
+export type BasicViewArgs = {
   prismaTxn?: Prisma.TransactionClient;
-  sessionInfo?: SessionInfo;
+  device: Device;
+  path: string;
 }
 
-export type NonAuthViewHandlerArgs = {
+export type NonAuthViewArgs = {
   req: Request;
   res: Response;
   next: NextFunction;
   isTxn?: boolean;
-  view: (args: NonAuthViewArgs) => Promise<any>;
+  view: (args: BasicViewArgs) => Promise<any>;
 }
 
-export type AuthViewArgs = NonAuthViewArgs & {
+type BasicAuthViewArgs = BasicViewArgs & {
   auth: AuthHandlerData;
 }
 
-export type AuthViewHandlerArgs = Omit<NonAuthViewHandlerArgs, "view"> & {
+export type AuthViewArgs = Omit<NonAuthViewArgs, "view"> & {
   userType: UserType;
-  view: (args: AuthViewArgs) => Promise<any>;
-}
-
-export type QueryParams = {
-  [key: string]: string;
+  view: (args: BasicAuthViewArgs) => Promise<any>;
 }

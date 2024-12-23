@@ -29,23 +29,3 @@ export const isRoute = (obj: any): obj is Route<any> => {
     typeof obj.handler === "function"
   );
 }
-
-export type MethodDefaults = {
-  method: HTTPMethod;
-}
-
-export const postDefaults: MethodDefaults = {
-  method: "post"
-}
-
-export const getDefaults: MethodDefaults = {
-  method: "get"
-}
-
-export const patchDefaults: MethodDefaults = {
-  method: "patch"
-}
-
-export const deleteDefaults: MethodDefaults = {
-  method: "delete"
-}

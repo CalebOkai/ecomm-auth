@@ -1,29 +1,61 @@
+import { Prisma, Session } from "@prisma/client";
+import { addDays } from "date-fns";
+
+import { NotFoundError, UnauthorizedError } from "../../errors";
+import { CreateNonAuthModel, GetModel } from "../types";
 import { default401 } from "../../errors/defaultMsgs";
-import { SessionInfo } from "../../middleware/types";
-import { UnauthorizedError } from "../../errors";
+import { randomHexString } from "../../utils/crypto";
 import { prismaClient } from "..";
-import {
-  getSessionMetadata,
-  setSessionExpiry
-} from "./utils";
 
 
 
-/********************************************************/
-/****Update an existing `Session` with request Metadata**
+/****************************
+ * **Create a new `Session`**
+ * @param args `CreateNonAuthModel`
+ */
+export const createSession = async (
+  args: CreateNonAuthModel<{
+    userId: string
+  }>
+): Promise<Session> => {
+  const { prismaTxn, fields, device } = args;
+  const prisma = prismaTxn || prismaClient;
+  const { userId } = fields;
+  const token = await randomHexString(128);
+  const expiresAt = addDays(new Date(), 7);
+  const data: Prisma.SessionCreateInput = {
+    token,
+    expiresAt,
+    user: {
+      connect: {
+        id: userId
+      }
+    },
+    devices: {
+      connect: {
+        id: device.id
+      }
+    }
+  }
+  const session = await prisma.session.create({
+    data
+  });
+
+  return session;
+}
+
+
+/************************************
+/* **Update a `Session`'s expiry date**
  * @param token Session ID (token).
- * @param sessionInfo An object containing relevant session metadata.
- * @throws `Unauthorized` if the session is not found.
- * @returns The `Session` instance updated with the metadata. */
+ * @throws `Unauthorized` if session is not found.
+ */
 export const refreshSession = async (
-  token: string,
-  sessionInfo?: SessionInfo
+  token: string
 ) => {
   const prisma = prismaClient;
-  const metadata = getSessionMetadata(sessionInfo);
-  const expiresAt = setSessionExpiry(7);
-  const data = {
-    ...metadata,
+  const expiresAt = addDays(new Date(), 7);
+  const data: Prisma.SessionUpdateInput = {
     expiresAt
   }
   const session = await prisma.session.findUnique({
@@ -33,9 +65,7 @@ export const refreshSession = async (
     throw new UnauthorizedError("", default401);
   }
   const updatedSession = await prisma.session.update({
-    where: {
-      token,
-    },
+    where: { token },
     data,
     include: {
       user: true
@@ -43,4 +73,26 @@ export const refreshSession = async (
   });
 
   return updatedSession;
+}
+
+
+/*********************************************
+ * **Delete an existing session by the Token**
+ * @param args Get model (authenticated)
+ * @throws `NotFoundError` if session is not found.
+ */
+export const deleteSession = async (
+  args: GetModel<string>
+): Promise<void> => {
+  const { prismaTxn, id } = args;
+  const prisma = prismaTxn || prismaClient;
+  try {
+    await prisma.session.delete({
+      where: { token: id },
+    });
+  } catch {
+    throw new NotFoundError("", {
+      details: ["Session not found"],
+    });
+  }
 }

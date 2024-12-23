@@ -1,17 +1,21 @@
+import { Session, User } from "@prisma/client";
 import { Request } from "express";
-import useragent from "useragent";
 
 import { handleArchivedUser } from "../models/auth/utils";
-import { AuthHandlerData, SessionInfo } from "./types";
 import { refreshSession } from "../models/sessions";
 import { default401 } from "../errors/defaultMsgs";
 import { UnauthorizedError } from "../errors";
+import { AuthHandlerData } from "./types";
 
 
 
-/****************************************/
-/** Get Auth Token from Request Headers */
-export const getAuthToken = (req: Request): string => {
+/************************************
+ * **Get Token from Request Headers**
+ * @param req Express.js Request object
+ */
+export const getAuthToken = (
+  req: Request
+): string => {
   const authHeader = req.header("Authorization");
   let token = "";
   if (authHeader) {
@@ -26,60 +30,35 @@ export const getAuthToken = (req: Request): string => {
 }
 
 
-/******************************************/
-/** Get Session info from Request Headers */
-export const setSessionInfo = async (
-  req: any
-): Promise<SessionInfo> => {
-  const agent = useragent.parse(req.headers["user-agent"]);
-  req.useragent = agent;
-  const deviceInfo = (
-    `${req.useragent.os.toString()
-    },${req.useragent.device.toString()}`
-  );
-  const browserInfo = req.useragent.toAgent();
-  const forwarded = req.headers["x-forwarded-for"];
-  const ipAddress = forwarded
-    ? forwarded.split(',')[0]
-    : req.connection.remoteAddress;
-  const sessionInfo = {
-    deviceInfo,
-    browserInfo,
-    ipAddress
-  }
-  req.sessionInfo = sessionInfo;
-
-  return sessionInfo;
-}
-
-
-/**********************************/
-/** Get User's Session from Token */
-export const getUsersSession = async (req: Request) => {
+/***********************************
+ * **Get User's Session from Token**
+ * @param req Express.js Request object
+ */
+export const getUsersSession = async (
+  req: Request
+): Promise<{ user: User; session: Session }> => {
   const token = getAuthToken(req);
-  const sessionInfo = await setSessionInfo(req);
-  const { user, ...session } = await refreshSession(
-    token,
-    sessionInfo
-  );
+  const { user, ...session } = await refreshSession(token);
   await handleArchivedUser(user);
 
   return {
     user,
     session
-  };
+  }
 }
 
 
-/*******************/
-/** Get Basic User */
+/************************************
+ * **Get the currently logged-in User**
+ * @param req Express.js Request object
+ */
 export const isUser = async (
   req: Request
 ): Promise<AuthHandlerData> => {
   const { user, session } = await getUsersSession(req);
 
   return {
-    session,
-    user
+    user,
+    session
   }
 }

@@ -79,12 +79,11 @@ export const validateField = <T>({
   throw invalidDataError(fieldName, modelName);
 }
 
-/**
- * Helper function to check if a value exists in a given enum.
+/*****************************************************************
+ * **Helper function to check if a value exists in a given enum.**
  * @param value - The value to check.
  * @param enumType - The enum type to validate against.
- * @returns The valid enum value if it exists, or `undefined`.
- */
+ * @returns The valid enum value if it exists, or undefined.*/
 export function isEnumValue<T extends Record<string, string | number>>(
   value: any,
   enumType: T
@@ -93,6 +92,7 @@ export function isEnumValue<T extends Record<string, string | number>>(
   if (validValues.includes(cleanString(value))) {
     return value as T[keyof T];
   }
+
   return undefined;
 }
 
