@@ -6,8 +6,7 @@ import { Request, Response, NextFunction } from "express";
 export type UserType =
   | "superAdmin"
   | "admin"
-  | "vendor"
-  | "customer";
+  | "user";
 
 
 export type AuthHandlerData = {

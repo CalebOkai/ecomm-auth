@@ -97,8 +97,8 @@ model LoginAttempt {
   successMetaData Json?
   user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId          String?
-  device          Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-  deviceId        String?
+  device          Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId        String
   attemptedAt     DateTime @default(now())
 }
 

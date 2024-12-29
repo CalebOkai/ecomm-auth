@@ -22,15 +22,22 @@ export const getOrCreateDevice = async (
   });
   if (!existingDevice) {
     return await prisma.device.create({
-      data: metaData
+      data: {
+        ...metaData,
+        lastActive: new Date()
+      }
     });
   } else {
     if (existingDevice.state === "blocked") {
       throw new UnauthorizedError("", default401);
     }
+    return await prisma.device.update({
+      where: { id: existingDevice.id },
+      data: {
+        lastActive: new Date
+      }
+    });
   }
-
-  return existingDevice;
 }
 
 
